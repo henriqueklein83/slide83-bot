@@ -1,68 +1,62 @@
 const axios = require("axios");
 
-// 🔑 SUAS VARIÁVEIS (já estão no Railway)
+// 🔑 Variáveis do Railway
 const TOKEN = process.env.TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 
-// 🌐 API da Blaze
-const API_URL = "https://blaze.bet.br/api/singleplayer-originals/originals/slide_games/recent/1";
+// 🌐 API correta da Blaze
+const API_URL = "https://blaze.com/api/singleplayer-originals/originals/slide_games/recent/1";
 
-// 🚀 Função pra pegar resultado
+// 🧠 Controle pra não repetir vela
+let ultimoId = null;
+
+// 🚀 Função principal
 async function pegarResultado() {
   try {
     const response = await axios.get(API_URL);
+
     const jogo = response.data[0];
 
+    if (!jogo) return;
+
+    // Evita repetir mesma vela
+    if (jogo.id === ultimoId) return;
+
+    ultimoId = jogo.id;
+
     const vela = parseFloat(jogo.crash_point);
-    const hora = new Date(jogo.created_at).toLocaleTimeString("pt-BR");
+    const horario = new Date(jogo.created_at).toLocaleTimeString("pt-BR");
 
-    console.log(`Vela: ${vela} | Hora: ${hora}`);
+    console.log(`🔥 Nova vela: ${vela}x | ${horario}`);
 
-    return { vela, hora };
+    // 📩 Mensagem padrão
+    let mensagem = `🎰 NOVA VELA\n\n⏰ ${horario}\n💎 ${vela}x`;
 
-  } catch (error) {
-    console.log("Erro API:", error.message);
-  }
-}
+    // 🚨 ALERTAS INTELIGENTES
+    if (vela >= 100) {
+      mensagem = `💎💎💎 100x+ INSANO!\n\n⏰ ${horario}\n🔥 ${vela}x`;
+    } else if (vela >= 50) {
+      mensagem = `🚀 50x+ BATENDO!\n\n⏰ ${horario}\n🔥 ${vela}x`;
+    } else if (vela >= 20) {
+      mensagem = `⚡ 20x+ ALERTA!\n\n⏰ ${horario}\n🔥 ${vela}x`;
+    } else if (vela >= 10) {
+      mensagem = `🟢 10x+ VEIO!\n\n⏰ ${horario}\n🔥 ${vela}x`;
+    }
 
-// 📤 Enviar mensagem Telegram
-async function enviarMensagem(msg) {
-  try {
+    // 📲 Enviar pro Telegram
     await axios.post(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
       chat_id: CHAT_ID,
-      text: msg
+      text: mensagem,
     });
+
+    console.log("📩 Enviado pro Telegram");
+
   } catch (error) {
-    console.log("Erro Telegram:", error.message);
+    console.log("❌ Erro API:", error.message);
   }
 }
 
-// 🧠 Loop principal
-let ultimoId = null;
-
-async function rodar() {
-  const resultado = await pegarResultado();
-
-  if (!resultado) return;
-
-  const { vela, hora } = resultado;
-
-  // 💥 evitar repetir mesmo resultado
-  if (hora === ultimoId) return;
-
-  ultimoId = hora;
-
-  let mensagem = `🎰 NOVA VELA\n\n⏰ ${hora}\n💎 ${vela}x`;
-
-  // 🔥 destaque automático
-  if (vela >= 10) {
-    mensagem += "\n🔥 POSSÍVEL OPORTUNIDADE";
-  }
-
-  await enviarMensagem(mensagem);
-}
-
-// ⏱ roda a cada 5 segundos
-setInterval(rodar, 5000);
+// ⏱️ Loop automático (a cada 5 segundos)
+setInterval(pegarResultado, 5000);
 
 console.log("🚀 BOT RODANDO...");
