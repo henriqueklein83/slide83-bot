@@ -4,24 +4,22 @@ const axios = require("axios");
 const TOKEN = process.env.TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 
-// 🌐 API correta da Blaze
+// 🌐 API Blaze (funcionando)
 const API_URL = "https://blaze.com/api/singleplayer-originals/originals/slide_games/recent/1";
 
-// 🧠 Controle pra não repetir vela
+// 🧠 Controle pra não repetir
 let ultimoId = null;
 
 // 🚀 Função principal
-async function pegarResultado() {
+async function rodarBot() {
   try {
     const response = await axios.get(API_URL);
-
     const jogo = response.data[0];
 
     if (!jogo) return;
 
     // Evita repetir mesma vela
     if (jogo.id === ultimoId) return;
-
     ultimoId = jogo.id;
 
     const vela = parseFloat(jogo.crash_point);
@@ -29,34 +27,58 @@ async function pegarResultado() {
 
     console.log(`🔥 Nova vela: ${vela}x | ${horario}`);
 
-    // 📩 Mensagem padrão
-    let mensagem = `🎰 NOVA VELA\n\n⏰ ${horario}\n💎 ${vela}x`;
+    // 🚨 FILTRO PROFISSIONAL (só vela forte)
+    if (vela < 10) return;
 
-    // 🚨 ALERTAS INTELIGENTES
+    let mensagem = "";
+
+    // 🎯 ALERTAS POR NÍVEL
     if (vela >= 100) {
-      mensagem = `💎💎💎 100x+ INSANO!\n\n⏰ ${horario}\n🔥 ${vela}x`;
+      mensagem = `💎💎💎 100x+ INSANO!
+
+⏰ ${horario}
+🔥 ${vela}x
+
+🚀 POSSÍVEL CICLO FORTE`;
     } else if (vela >= 50) {
-      mensagem = `🚀 50x+ BATENDO!\n\n⏰ ${horario}\n🔥 ${vela}x`;
+      mensagem = `🚀 50x+ BATENDO!
+
+⏰ ${horario}
+🔥 ${vela}x
+
+⚡ FICA ATENTO`;
     } else if (vela >= 20) {
-      mensagem = `⚡ 20x+ ALERTA!\n\n⏰ ${horario}\n🔥 ${vela}x`;
-    } else if (vela >= 10) {
-      mensagem = `🟢 10x+ VEIO!\n\n⏰ ${horario}\n🔥 ${vela}x`;
+      mensagem = `⚡ 20x+ ALERTA!
+
+⏰ ${horario}
+🔥 ${vela}x
+
+🧠 POSSÍVEL ENTRADA`;
+    } else {
+      mensagem = `🟢 10x+ VEIO!
+
+⏰ ${horario}
+🔥 ${vela}x
+
+📊 OBSERVAÇÃO DE PADRÃO`;
     }
 
-    // 📲 Enviar pro Telegram
-    await axios.post(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-      chat_id: CHAT_ID,
-      text: mensagem,
+    // 📲 ENVIO TELEGRAM (versão estável)
+    await axios.get(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+      params: {
+        chat_id: CHAT_ID,
+        text: mensagem,
+      },
     });
 
     console.log("📩 Enviado pro Telegram");
 
   } catch (error) {
-    console.log("❌ Erro API:", error.message);
+    console.log("❌ Erro:", error.message);
   }
 }
 
-// ⏱️ Loop automático (a cada 5 segundos)
-setInterval(pegarResultado, 5000);
+// ⏱️ Loop automático
+setInterval(rodarBot, 5000);
 
-console.log("🚀 BOT RODANDO...");
+console.log("🚀 BOT ONLINE E MONITORANDO...");
