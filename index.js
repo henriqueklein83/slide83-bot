@@ -1,113 +1,48 @@
 const axios = require("axios");
-const { makeConnection } = require("@viniciusgdr/Blaze");
+const { BlazeClient } = require("@viniciusgdr/Blaze");
 
-const TOKEN = process.env.TOKEN;       // token do bot Telegram
-const CHAT_ID = process.env.CHAT_ID;   // id do grupo
-const BLAZE_TOKEN = process.env.BLAZE_TOKEN || ""; // opcional
+const TOKEN = process.env.TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
 
-let ultimoRoundId = null;
+// conectar websocket
+const blaze = new BlazeClient({
+  autoConnect: true
+});
 
-async function enviarTelegram(texto) {
+console.log("🚀 Bot iniciando...");
+
+// função enviar telegram
+async function enviar(msg) {
   try {
-    await axios.get(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-      params: {
-        chat_id: CHAT_ID,
-        text: texto,
-      },
+    await axios.post(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+      chat_id: CHAT_ID,
+      text: msg
     });
-    console.log("📩 Enviado pro Telegram");
-  } catch (err) {
-    console.log("❌ Erro Telegram:", err.response?.data || err.message);
+    console.log("📩 Enviado:", msg);
+  } catch (e) {
+    console.log("❌ Erro Telegram:", e.message);
   }
 }
 
-function extrairMultiplicador(msg) {
-  if (!msg) return null;
+// evento tempo real
+blaze.on("crash", async (data) => {
+  const valor = parseFloat(data.crashPoint);
 
-  const candidatos = [
-    msg.crash_point,
-    msg.point,
-    msg.multiplier,
-    msg.value,
-    msg.crashPoint,
-  ];
+  console.log("🎯 Vela:", valor);
 
-  for (const v of candidatos) {
-    const n = parseFloat(v);
-    if (!Number.isNaN(n)) return n;
+  if (valor >= 10) {
+    await enviar(`🔥 ${valor}x VEIO!`);
   }
 
-  return null;
-}
-
-function extrairId(msg) {
-  return (
-    msg?.id ??
-    msg?.round_id ??
-    msg?.roundId ??
-    msg?.game_id ??
-    msg?.gameId ??
-    msg?.created_at ??
-    msg?.timestamp ??
-    null
-  );
-}
-
-function formatarMensagem(mult, horario) {
-  if (mult >= 100) {
-    return `💎💎💎 100x+ INSANO!\n\n⏰ ${horario}\n🔥 ${mult}x`;
+  if (valor >= 20) {
+    await enviar(`🚀 ${valor}x ALTA!`);
   }
-  if (mult >= 50) {
-    return `🚀 50x+ BATENDO!\n\n⏰ ${horario}\n🔥 ${mult}x`;
+
+  if (valor >= 50) {
+    await enviar(`💥 ${valor}x MONSTRO!`);
   }
-  if (mult >= 20) {
-    return `⚡ 20x+ ALERTA!\n\n⏰ ${horario}\n🔥 ${mult}x`;
+
+  if (valor >= 100) {
+    await enviar(`👑 ${valor}x INSANO!`);
   }
-  if (mult >= 10) {
-    return `🟢 10x+ VEIO!\n\n⏰ ${horario}\n🔥 ${mult}x`;
-  }
-  return null;
-}
-
-async function iniciar() {
-  console.log("🚀 Bot websocket iniciando...");
-
-  const socket = makeConnection({
-    type: "crash",
-    ...(BLAZE_TOKEN ? { token: BLAZE_TOKEN } : {}),
-    cacheIgnoreRepeatedEvents: true,
-  });
-
-  socket.ev.on("crash.tick", async (msg) => {
-    try {
-      const roundId = extrairId(msg);
-      const mult = extrairMultiplicador(msg);
-
-      if (roundId && roundId === ultimoRoundId) return;
-      if (mult == null) return;
-
-      ultimoRoundId = roundId || `${Date.now()}-${mult}`;
-
-      const horario = new Date().toLocaleTimeString("pt-BR");
-      console.log("📡 Evento recebido:", msg);
-      console.log(`🔥 Multiplicador: ${mult}x`);
-
-      const mensagem = formatarMensagem(mult, horario);
-      if (!mensagem) return;
-
-      await enviarTelegram(mensagem);
-    } catch (err) {
-      console.log("❌ Erro ao tratar evento:", err.message);
-    }
-  });
-
-  socket.ev.on("close", (msg) => {
-    console.log("🔌 Socket fechou:", msg);
-  });
-
-  console.log("✅ WebSocket conectado");
-}
-
-iniciar().catch((err) => {
-  console.log("❌ Erro fatal:", err);
 });
