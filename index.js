@@ -1,54 +1,113 @@
 const axios = require("axios");
+const { makeConnection } = require("@viniciusgdr/Blaze");
 
-const TOKEN = process.env.TOKEN;
-const CHAT_ID = process.env.CHAT_ID;
+const TOKEN = process.env.TOKEN;       // token do bot Telegram
+const CHAT_ID = process.env.CHAT_ID;   // id do grupo
+const BLAZE_TOKEN = process.env.BLAZE_TOKEN || ""; // opcional
 
-const API_URL = "https://blaze.com/api/singleplayer-originals/originals/slide_games/recent/1";
+let ultimoRoundId = null;
 
-let ultimoId = null;
-
-async function rodarBot() {
+async function enviarTelegram(texto) {
   try {
-    const response = await axios.get(API_URL, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-        "Referer": "https://blaze.com/"
-      }
-    });
-
-    const jogo = response.data[0];
-
-    if (!jogo) return;
-
-    if (jogo.id === ultimoId) return;
-    ultimoId = jogo.id;
-
-    const vela = parseFloat(jogo.crash_point);
-    const horario = new Date(jogo.created_at).toLocaleTimeString("pt-BR");
-
-    console.log(`🔥 Vela: ${vela}x | ${horario}`);
-
-    // 🔥 TESTE: manda qualquer vela (tiramos filtro temporário)
-    let mensagem = `🎰 VELA AO VIVO
-
-⏰ ${horario}
-💎 ${vela}x`;
-
     await axios.get(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
       params: {
         chat_id: CHAT_ID,
-        text: mensagem,
+        text: texto,
       },
     });
-
-    console.log("📩 Enviado");
-
-  } catch (error) {
-    console.log("❌ ERRO REAL:", error.message);
+    console.log("📩 Enviado pro Telegram");
+  } catch (err) {
+    console.log("❌ Erro Telegram:", err.response?.data || err.message);
   }
 }
 
-setInterval(rodarBot, 5000);
+function extrairMultiplicador(msg) {
+  if (!msg) return null;
 
-console.log("🚀 BOT RODANDO...");
+  const candidatos = [
+    msg.crash_point,
+    msg.point,
+    msg.multiplier,
+    msg.value,
+    msg.crashPoint,
+  ];
+
+  for (const v of candidatos) {
+    const n = parseFloat(v);
+    if (!Number.isNaN(n)) return n;
+  }
+
+  return null;
+}
+
+function extrairId(msg) {
+  return (
+    msg?.id ??
+    msg?.round_id ??
+    msg?.roundId ??
+    msg?.game_id ??
+    msg?.gameId ??
+    msg?.created_at ??
+    msg?.timestamp ??
+    null
+  );
+}
+
+function formatarMensagem(mult, horario) {
+  if (mult >= 100) {
+    return `💎💎💎 100x+ INSANO!\n\n⏰ ${horario}\n🔥 ${mult}x`;
+  }
+  if (mult >= 50) {
+    return `🚀 50x+ BATENDO!\n\n⏰ ${horario}\n🔥 ${mult}x`;
+  }
+  if (mult >= 20) {
+    return `⚡ 20x+ ALERTA!\n\n⏰ ${horario}\n🔥 ${mult}x`;
+  }
+  if (mult >= 10) {
+    return `🟢 10x+ VEIO!\n\n⏰ ${horario}\n🔥 ${mult}x`;
+  }
+  return null;
+}
+
+async function iniciar() {
+  console.log("🚀 Bot websocket iniciando...");
+
+  const socket = makeConnection({
+    type: "crash",
+    ...(BLAZE_TOKEN ? { token: BLAZE_TOKEN } : {}),
+    cacheIgnoreRepeatedEvents: true,
+  });
+
+  socket.ev.on("crash.tick", async (msg) => {
+    try {
+      const roundId = extrairId(msg);
+      const mult = extrairMultiplicador(msg);
+
+      if (roundId && roundId === ultimoRoundId) return;
+      if (mult == null) return;
+
+      ultimoRoundId = roundId || `${Date.now()}-${mult}`;
+
+      const horario = new Date().toLocaleTimeString("pt-BR");
+      console.log("📡 Evento recebido:", msg);
+      console.log(`🔥 Multiplicador: ${mult}x`);
+
+      const mensagem = formatarMensagem(mult, horario);
+      if (!mensagem) return;
+
+      await enviarTelegram(mensagem);
+    } catch (err) {
+      console.log("❌ Erro ao tratar evento:", err.message);
+    }
+  });
+
+  socket.ev.on("close", (msg) => {
+    console.log("🔌 Socket fechou:", msg);
+  });
+
+  console.log("✅ WebSocket conectado");
+}
+
+iniciar().catch((err) => {
+  console.log("❌ Erro fatal:", err);
+});
