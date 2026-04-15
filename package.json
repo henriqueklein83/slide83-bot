@@ -1,12 +1,4 @@
-{
-  "name": "slide-bot",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "@viniciusgdr/Blaze": "^3.0.2",
-    "axios": "^1.6.0"
-  }
+"dependencies": {
+  "@viniciusgdr/Blaze": "^3.0.2",
+  "axios": "^1.6.0"
 }
